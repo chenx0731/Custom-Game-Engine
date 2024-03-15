@@ -6,6 +6,10 @@
 #include "Engine/Renderer/BitmapFont.hpp"
 #include "Engine/Math/AABB2.hpp"
 #include "Engine/Core/Stopwatch.hpp"
+#include "Engine/Core/XmlUtils.hpp"
+#include "Engine/Core/FileUtils.hpp"
+#include "Engine/Core/ErrorWarningAssert.hpp"
+
 
 const Rgba8 DevConsole::ERROR = Rgba8::RED;
 const Rgba8 DevConsole::WARNING = Rgba8(255, 255, 0);
@@ -117,6 +121,46 @@ void DevConsole::AddLine(Rgba8 const& color, std::string const& text)
 	newLine.m_text = text;
 	m_lines.push_back(newLine);
 	m_linesLock.unlock();
+}
+
+void DevConsole::ExecuteXmlCommandScriptNode(XmlElement const& commandScriptXmlElement)
+{
+	//XmlElement* childElement = commandScriptXmlElement->FirstChildElement();
+	while (&commandScriptXmlElement != nullptr)
+	{
+		std::string text = commandScriptXmlElement.Name();
+
+		const XmlAttribute* attribute = commandScriptXmlElement.FirstAttribute();
+
+		while (attribute != nullptr)
+		{
+			std::string attributeText = " ";
+			attributeText += attribute->Name();
+			attributeText += "=\"";
+			attributeText += attribute->Value();
+			attributeText += "\"";
+			attribute = attribute->Next();
+			text += attributeText;
+		}
+		Execute(text);
+		//commandScriptXmlElement = commandScriptXmlElement.FirstChildElement();
+	}
+
+}
+
+void DevConsole::ExecuteXmlCommandScriptFile(std::string commandScriptXmlFilePathName)
+{
+	XmlDocument commandDoc;
+	bool isFileValid = IsFileExist(commandScriptXmlFilePathName);
+	if (!isFileValid) {
+		ERROR_AND_DIE(Stringf("Can't open file: %s", commandScriptXmlFilePathName));
+	}
+	commandDoc.LoadFile(commandScriptXmlFilePathName.c_str());
+	XmlElement* modelDefElement = commandDoc.RootElement();
+	modelDefElement = modelDefElement->FirstChildElement();
+	ExecuteXmlCommandScriptNode(*modelDefElement);
+	//std::string text = modelDefElement->
+	//std::string = modelDefElement->ToText();
 }
 
 void DevConsole::Render(AABB2 const& bounds)

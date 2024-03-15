@@ -45,6 +45,8 @@ public:
 
 	void Execute(std::string const& consoleCommandText);
 	void AddLine(Rgba8 const& color, std::string const& text);
+	void ExecuteXmlCommandScriptNode(XmlElement const& commandScriptXmlElement);
+	void ExecuteXmlCommandScriptFile(std::string commandScriptXmlFilePathName);
 	void Render(AABB2 const& bounds);
 
 	void ToggleOpen();

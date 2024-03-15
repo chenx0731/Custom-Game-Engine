@@ -7,6 +7,7 @@
 #include "Engine/Math/LineSegment2.hpp"
 #include "Engine/Math/EulerAngles.hpp"
 #include "Engine/Math/OBB2.hpp"
+#include "Engine/Math/ConvexPoly2D.hpp"
 
 void TransformVertexArrayXY3D(int numVerts, Vertex_PCU* verts, float scaleXY, float rotationDegreesAboutZ, Vec2 const& translationXY)
 {
@@ -556,6 +557,137 @@ void AddVertsForTBNDebug(std::vector<Vertex_PCU>& vertexes, const std::vector<Ve
 	}
 }
 
+void AddVertsForConvexPoly2D(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, const ConvexPoly2D& convexPoly, Rgba8 color /*= Rgba8::WHITE*/)
+{
+	int initial = (int)verts.size();
+	std::vector<Vec2> points = convexPoly.GetAllPoints();
+	for (int vertIndex = 0; vertIndex < (int)points.size(); vertIndex++) {
+		Vertex_PCU vert;
+		vert.m_position = points[vertIndex];
+		vert.m_color = color;
+		verts.push_back(vert);
+	}
+
+	for (int vertIndex = 1; vertIndex < (int)points.size() - 1; vertIndex++) {
+		indexes.push_back(initial); 
+		indexes.push_back(initial + vertIndex);
+		indexes.push_back(initial + vertIndex + 1);
+	}
+}
+
+void AddVertsForConvexPoly2D(std::vector<Vertex_PCU>& verts, const ConvexPoly2D& convexPoly, Rgba8 color /*= Rgba8::WHITE*/)
+{
+	std::vector<Vec2> points = convexPoly.GetAllPoints();
+	for (int vertIndex = 1; vertIndex < (int)points.size() - 1; vertIndex++) {
+		Vertex_PCU vert0, vert1, vert2;
+		
+		vert0.m_position = points[0];
+		vert0.m_color = color;
+
+		vert1.m_position = points[vertIndex];
+		vert1.m_color = color;
+
+		vert2.m_position = points[vertIndex + 1];
+		vert2.m_color = color;
+
+		verts.push_back(vert0);
+		verts.push_back(vert1);
+		verts.push_back(vert2);
+	}
+}
+
+void AddVertsForConvexPoly2DFrame(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, const ConvexPoly2D& convexPoly, float thickness, Rgba8 color /*= Rgba8::WHITE*/)
+{
+	// #SD4Convex: last edge is not included, and it's not the most optimized
+
+	std::vector<Vec2> points = convexPoly.GetAllPoints();
+	for (int pointIndex = 0; pointIndex < (int)points.size(); pointIndex++) {
+		/*
+		Vertex_PCU BL, BR;
+		Vec2 start = points[pointIndex];
+		Vec2 end;
+		if (pointIndex == (int)points.size() - 1)
+			end = points[0];
+		else end = points[pointIndex + 1];
+		Vec2 forward = end - start;
+		Vec2 left = forward.GetRotated90Degrees();
+		left.Normalize();
+		
+		BL.m_position = start + half * left;
+		BR.m_position = start - half * left;
+
+		BL.m_color = color;
+		BR.m_color = color;
+
+		verts.push_back(BL);
+		verts.push_back(BR);
+
+		if (pointIndex != (int)points.size() - 1) {
+			indexes.push_back(initial + pointIndex * 2 );
+			indexes.push_back(initial + pointIndex * 2 + 1);
+			indexes.push_back(initial + pointIndex * 2 + 3);
+
+			indexes.push_back(initial + pointIndex * 2);
+			indexes.push_back(initial + pointIndex * 2 + 3);
+			indexes.push_back(initial + pointIndex * 2 + 2);
+		}
+		else {
+			indexes.push_back(initial + pointIndex * 2);
+			indexes.push_back(initial + pointIndex * 2 + 1);
+			indexes.push_back(initial + 1);
+
+			indexes.push_back(initial + pointIndex * 2);
+			indexes.push_back(initial + 1);
+			indexes.push_back(initial);
+		}*/
+
+		Vec2 start = points[pointIndex];
+		Vec2 end;
+		if (pointIndex == (int)points.size() - 1)
+			end = points[0];
+		else end = points[pointIndex + 1];
+
+		AddVertsForLineSegment2D(verts, indexes, start, end, thickness, color);
+	}
+
+}
+
+void AddVertsForConvexPoly2DFrame(std::vector<Vertex_PCU>& verts, const ConvexPoly2D& convexPoly, float thickness, Rgba8 color /*= Rgba8::WHITE*/)
+{
+	// #SD4Convex
+	float half = 0.5f * thickness;
+	std::vector<Vec2> points = convexPoly.GetAllPoints();
+	for (int pointIndex = 0; pointIndex < (int)points.size(); pointIndex++) {
+		Vertex_PCU BL, BR, TL, TR;
+		Vec2 start = points[pointIndex];
+		Vec2 end;
+		if (pointIndex == (int)points.size() - 1)
+			end = points[0];
+		else end = points[pointIndex + 1];
+		Vec2 forward = end - start;
+		Vec2 left = forward.GetRotated90Degrees();
+		left.Normalize();
+
+		BL.m_position = start + half * left;
+		BR.m_position = start - half * left;
+		TL.m_position = end + half * left;
+		TR.m_position = end - half * left;
+
+		BL.m_color = color;
+		BR.m_color = color;
+		TL.m_color = color;
+		TR.m_color = color;
+
+		verts.push_back(BL);
+		verts.push_back(BR);
+		verts.push_back(TR);
+
+		verts.push_back(BL);
+		verts.push_back(TR);
+		verts.push_back(TL);
+	}
+}
+
 void AddVertsForUVSphereZWireframe3D(std::vector<Vertex_PCU>& verts, Vec3 const& center, float radius, float numSlices, float numStacks, float lineThickness, Rgba8 const& color)
 {
 	int numofSlices = RoundDownToInt(numSlices);
@@ -1069,6 +1201,62 @@ void AddVertsForLineSegment2D(std::vector<Vertex_PCU>& verts, Vec2 const& start,
 {
 	LineSegment2 line = LineSegment2(start, end);
 	AddVertsForLineSegment2D(verts, line, thickness, color);
+}
+
+void AddVertsForLineSegment2D(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, Vec2 const& start, Vec2 const& end, float thickness, Rgba8 const& color)
+{
+	LineSegment2 lineSegment = LineSegment2(start, end);
+
+	Vec2 iBasisNormal = (lineSegment.m_end - lineSegment.m_start).GetRotatedMinus90Degrees();
+	iBasisNormal.Normalize();
+	float halfThickness = 0.5f * thickness;
+
+	Vec3 BL = Vec3(lineSegment.m_start - iBasisNormal * halfThickness);
+	Vec3 BR = Vec3(lineSegment.m_start + iBasisNormal * halfThickness);
+	Vec3 TR = Vec3(lineSegment.m_end + iBasisNormal * halfThickness);
+	Vec3 TL = Vec3(lineSegment.m_end - iBasisNormal * halfThickness);
+
+	int initial = (int)verts.size();
+
+	verts.push_back(Vertex_PCU(BL, color, Vec2(0.f, 0.f)));
+	verts.push_back(Vertex_PCU(BR, color, Vec2(1.f, 0.f)));
+	verts.push_back(Vertex_PCU(TL, color, Vec2(0.f, 1.f)));
+	verts.push_back(Vertex_PCU(TR, color, Vec2(1.f, 1.f)));
+
+	indexes.push_back(initial);
+	indexes.push_back(initial + 1);
+	indexes.push_back(initial + 3);
+
+	indexes.push_back(initial);
+	indexes.push_back(initial + 3);
+	indexes.push_back(initial + 2);
+}
+
+void AddVertsForInfiniteLineSegment2D(std::vector<Vertex_PCU>& verts, Vec2 const& start, Vec2 const& end, float thickness, Rgba8 const& color)
+{
+	constexpr int NUM_TRIS = 2;
+	constexpr int NUM_VERTS = 3 * NUM_TRIS;
+	verts.reserve(verts.size() + NUM_VERTS);
+
+	LineSegment2 lineSegment = LineSegment2(start, end);
+
+	Vec2 iBasisNormal = (lineSegment.m_end - lineSegment.m_start).GetRotatedMinus90Degrees();
+	iBasisNormal.Normalize();
+	Vec2 normalS2E = iBasisNormal.GetRotated90Degrees();
+	float halfThickness = 0.5f * thickness;
+
+	Vec3 BL = Vec3(lineSegment.m_start - normalS2E* 1000.f - iBasisNormal * halfThickness);
+	Vec3 BR = Vec3(lineSegment.m_start - normalS2E * 1000.f + iBasisNormal * halfThickness);
+	Vec3 TR = Vec3(lineSegment.m_end + normalS2E * 1000.f + iBasisNormal * halfThickness);
+	Vec3 TL = Vec3(lineSegment.m_end + normalS2E * 1000.f - iBasisNormal * halfThickness);
+
+	verts.push_back(Vertex_PCU(BL, color, Vec2(0.f, 0.f)));
+	verts.push_back(Vertex_PCU(BR, color, Vec2(1.f, 0.f)));
+	verts.push_back(Vertex_PCU(TR, color, Vec2(1.f, 1.f)));
+
+	verts.push_back(Vertex_PCU(BL, color, Vec2(0.f, 0.f)));
+	verts.push_back(Vertex_PCU(TR, color, Vec2(1.f, 1.f)));
+	verts.push_back(Vertex_PCU(TL, color, Vec2(0.f, 1.f)));
 }
 
 void AddVertsForLineSegment3D(std::vector<Vertex_PCU>& verts, Vec3 const& start, Vec3 const& end, float thickness, Rgba8 const& color)

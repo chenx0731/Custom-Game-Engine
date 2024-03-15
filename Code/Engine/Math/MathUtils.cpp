@@ -1339,6 +1339,16 @@ float MinNumAmong3(float num1, float num2, float num3)
 	return fminf(fminf(num1, num2), num3);
 }
 
+float Max(float num1, float num2)
+{
+	return fmaxf(num1, num2);
+}
+
+float Min(float num1, float num2)
+{
+	return fminf(num1, num2);
+}
+
 Rgba8 LerpColor(Rgba8 a, Rgba8 b, float alpha)
 {
 	float colorA[4];

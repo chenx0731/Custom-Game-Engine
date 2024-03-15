@@ -13,13 +13,20 @@
 		(dxObject) = nullptr;		\
 	}								\
 }
-
+struct ID3D11Resource;
 struct ID3D11Texture2D;
+struct ID3D11Texture3D;
 struct ID3D11ShaderResourceView;
 struct ID3D11UnorderedAccessView;
 class Renderer;
 
 // add a function to convert from enum to DX11 enum
+
+enum class TextureDimension
+{
+	TEXTURE_2D,
+	TEXTURE_3D,
+};
 
 enum class TextureType
 {
@@ -37,6 +44,7 @@ struct TextureConfig
 	void*		 m_initialData = nullptr;
 	int			 m_stride;
 	MemoryUsage  m_usage = MemoryUsage::IMMUTABLE;
+	TextureDimension m_dimension = TextureDimension::TEXTURE_2D;
 	TextureType  m_type = TextureType::DEFAULT;
 	Strings		 m_files;
 };
@@ -63,8 +71,12 @@ protected:
 	Renderer*			m_owner;
 	std::string			m_name;
 	IntVec2				m_dimensions;
-
-	ID3D11Texture2D*			m_texture = nullptr;
+	union 
+	{
+		ID3D11Resource*			m_texture = nullptr;
+		ID3D11Texture2D*		m_texture2;
+		ID3D11Texture3D*		m_texture3;
+	};
 	std::vector<ResourceView*>  m_views;
 	//ID3D11ShaderResourceView*	m_shaderResourceView = nullptr;
 };

@@ -150,6 +150,20 @@ void Renderer::Startup()
 	}
 
 	hr = m_device->CreateRenderTargetView(backBuffer, NULL, &m_targetView);
+
+	TextureConfig preBackBuffer;
+	preBackBuffer.m_name = "Pre Back Buffer";
+	preBackBuffer.m_width = m_config.m_window->GetClientDimensions().x;
+		//m_worldCamera.m_viewport.GetDimensions().x;
+	preBackBuffer.m_height = m_config.m_window->GetClientDimensions().y;
+	preBackBuffer.m_format = ResourceFormat::R8G8B8A8_UNORM;
+	preBackBuffer.m_bindFlags = RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW | RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW;
+	preBackBuffer.m_usage = MemoryUsage::DEFAULT;
+
+	m_preBackBuffer = g_theRenderer->CreateTextureByConfig(preBackBuffer);
+	m_preBackBuffer->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW);
+	m_preBackBuffer->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW);
+
 	if (!SUCCEEDED(hr)) {
 		ERROR_AND_DIE("Could create render target view for swap chain buffer.");
 	}
@@ -158,6 +172,7 @@ void Renderer::Startup()
 	DX_SAFE_RELEASE(backBuffer);
 
 	m_defaultShader = CreateShader("Data/Shaders/Default");
+	m_copyShader	= CreateShader("Data/Shaders/CopyToDefaultTargetView");
 		//CreateShader("Default", g_defaultShader);
 	Image defaultImage = Image(IntVec2(2, 2), Rgba8::WHITE);
 	m_defaultTexture = CreateTextureFromImage(defaultImage);
@@ -165,6 +180,7 @@ void Renderer::Startup()
 	//m_immediateCBO = CreateConstantBuffer(16);
 	m_immediateVBO_PCU = CreateVertexBuffer(sizeof(Vertex_PCU), sizeof(Vertex_PCU));
 	m_immediateVBO_PNCU = CreateVertexBuffer(sizeof(Vertex_PCUTBN), sizeof(Vertex_PCUTBN));
+	m_immediateIBO = CreateIndexBuffer(sizeof(unsigned int));
 	m_lightCBO = CreateConstantBuffer(sizeof(LightConstants));
 	m_cameraCBO = CreateConstantBuffer(sizeof(CameraConstants));
 	m_modelCBO = CreateConstantBuffer(sizeof(ModelConstants));
@@ -199,12 +215,21 @@ void Renderer::Startup()
 
 void Renderer::BeginFrame()
 {
-	m_deviceContext->OMSetRenderTargets(1, &m_targetView, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+	m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 }
 
 void Renderer::EndFrame()
 {
 	HRESULT hr;
+
+	m_deviceContext->OMSetRenderTargets(1, &m_targetView, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+
+	BindShader(m_copyShader);
+	BindTexture(m_preBackBuffer, 2);
+	Draw(3);
+	BindShader(nullptr);
+	BindTexture(nullptr, 2);
+
 	hr = m_swapChain->Present(0, 0);
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 	{
@@ -220,6 +245,7 @@ void Renderer::Shutdown()
 	
 	m_currentShader = nullptr;
 	m_defaultShader = nullptr;
+	m_copyShader = nullptr;
 
 	for (int textureIndex = 0; textureIndex < m_loadedTextures.size(); textureIndex++) {
 		delete m_loadedTextures[textureIndex];
@@ -229,6 +255,8 @@ void Renderer::Shutdown()
 	m_depthStencilTexture = nullptr;
 
 	m_defaultTexture = nullptr;
+
+	m_preBackBuffer = nullptr;
 
 	for (int bitmapIndex = 0; bitmapIndex < m_loadedFonts.size(); bitmapIndex++) {
 		delete m_loadedFonts[bitmapIndex];
@@ -240,6 +268,9 @@ void Renderer::Shutdown()
 
 	delete m_immediateVBO_PNCU;
 	m_immediateVBO_PNCU = nullptr;
+
+	delete m_immediateIBO;
+	m_immediateIBO = nullptr;
 
 	delete m_lightCBO;
 	m_lightCBO = nullptr;
@@ -299,7 +330,7 @@ void Renderer::ClearScreen(const Rgba8& clearColor, Texture const* depthStencil,
 	float m_colorRGBA[4];
 	m_color.GetAsFloats(m_colorRGBA);
 	if (renderTarget == nullptr)
-		m_deviceContext->ClearRenderTargetView(m_targetView, m_colorRGBA);
+		m_deviceContext->ClearRenderTargetView(m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_colorRGBA);
 	else m_deviceContext->ClearRenderTargetView(renderTarget->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_colorRGBA);
 	if (depthStencil)
 	m_deviceContext->ClearDepthStencilView(depthStencil->GetResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
@@ -314,7 +345,7 @@ void Renderer::ClearRenderTarget(const Rgba8& clearColor, Texture const* renderT
 	float l_colorRGBA[4];
 	l_color.GetAsFloats(l_colorRGBA);
 	if (renderTarget == nullptr)
-		m_deviceContext->ClearRenderTargetView(m_targetView, l_colorRGBA);
+		m_deviceContext->ClearRenderTargetView(m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, l_colorRGBA);
 	else m_deviceContext->ClearRenderTargetView(renderTarget->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, l_colorRGBA);
 }
 
@@ -352,6 +383,7 @@ void Renderer::BeginCamera(const Camera& camera)
 
 	CopyCPUToGPU(&l_cameraConstants, sizeof(CameraConstants), m_cameraCBO);
 	BindConstantBuffer(k_cameraConstantsSlot, m_cameraCBO);
+	CSBindConstantBuffer(k_cameraConstantsSlot, m_cameraCBO);
 
 	// TODO: Remove it to somewhere it belongs to
 	//SetLightConstants();
@@ -384,21 +416,44 @@ void Renderer::DrawVertexArray(int numVertexes, const Vertex_PCUTBN* vertexes)
 
 void Renderer::DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCU* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer)
 {
-	CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCU), sizeof(Vertex_PCU), vertexBuffer);
-	CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), indexBuffer);
-	//m_deviceContext->IASetPrimitiveTopology(vertexBuffer->GetPrimitiveTopology());
-	BindVertexBuffer(vertexBuffer);
-	BindIndexBuffer(indexBuffer);
+	if (vertexBuffer)
+		CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCU), sizeof(Vertex_PCU), vertexBuffer);
+	else CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCU), sizeof(Vertex_PCU), m_immediateVBO_PCU);
+
+	if (indexBuffer)
+		CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), indexBuffer);
+	else CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), m_immediateIBO);
+
+	if (vertexBuffer)
+		BindVertexBuffer(vertexBuffer);
+	else BindVertexBuffer(m_immediateVBO_PCU);
+
+	if (indexBuffer)
+		BindIndexBuffer(indexBuffer);
+	else BindIndexBuffer(m_immediateIBO);
+
 	m_deviceContext->DrawIndexed(numIndexes, 0, 0);
 }
 
 void Renderer::DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCUTBN* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer)
 {
 	//m_deviceContext->IASetPrimitiveTopology(vertexBuffer->GetPrimitiveTopology());
-	CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCUTBN), sizeof(Vertex_PCUTBN), vertexBuffer);
-	BindVertexBuffer(vertexBuffer);
-	CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), indexBuffer);
-	BindIndexBuffer(indexBuffer);
+	if (vertexBuffer)
+		CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCUTBN), sizeof(Vertex_PCUTBN), vertexBuffer);
+	else CopyCPUToGPU(vertexes, numVertexes * sizeof(Vertex_PCU), sizeof(Vertex_PCU), m_immediateVBO_PNCU);
+
+	if (indexBuffer)
+		CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), indexBuffer);
+	else CopyCPUToGPU(indexes, numIndexes * sizeof(unsigned int), m_immediateIBO);
+
+	if (vertexBuffer)
+		BindVertexBuffer(vertexBuffer);
+	else BindVertexBuffer(m_immediateVBO_PNCU);
+
+	if (indexBuffer)
+		BindIndexBuffer(indexBuffer);
+	else BindIndexBuffer(m_immediateIBO);
+
 	m_deviceContext->DrawIndexed(numIndexes, 0, 0);
 }
 
@@ -535,10 +590,38 @@ void Renderer::CSSetUAV(StructuredBuffer* buffer, int slot) const
 	}
 }
 
+void Renderer::CSSetUAV(Texture* texture, int slot) const
+{
+	if (texture) {
+		m_deviceContext->CSSetUnorderedAccessViews(slot, 1, &texture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_UNORDERED_ACCESS_VIEW)->m_UAV, NULL);
+
+		//m_deviceContext->PSSetUnorderedAccessViews(slot, 1, &uav->m_UAV, NULL);
+		//m_deviceContext->CSSetShaderResources(slot, 1, &uav->m_SRV);
+	}
+	else {
+		ID3D11UnorderedAccessView* ppUAViewNULL[1] = { NULL };
+		//ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
+		m_deviceContext->CSSetUnorderedAccessViews(slot, 1, ppUAViewNULL, NULL);
+		//m_deviceContext->VSSetUnorderedAccessViews(slot, 1, ppUAViewNULL, NULL);
+		//m_deviceContext->CSSetShaderResources(slot, 1, ppSRViewNULL);
+	}
+}
+
 void Renderer::CSSetSRV(StructuredBuffer* buffer, int slot) const
 {
 	if (buffer) {
 		m_deviceContext->CSSetShaderResources(slot, 1, &buffer->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW)->m_SRV);
+	}
+	else {
+		ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
+		m_deviceContext->CSSetShaderResources(slot, 1, ppSRViewNULL);
+	}
+}
+
+void Renderer::CSSetSRV(Texture* texture, int slot) const
+{
+	if (texture) {
+		m_deviceContext->CSSetShaderResources(slot, 1, &texture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW)->m_SRV);
 	}
 	else {
 		ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
@@ -557,6 +640,17 @@ void Renderer::VSSetSRV(StructuredBuffer* buffer, int slot) const
 	}
 }
 
+
+void Renderer::VSSetSRV(Texture* buffer, int slot) const
+{
+	if (buffer) {
+		m_deviceContext->VSSetShaderResources(slot, 1, &buffer->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW)->m_SRV);
+	}
+	else {
+		ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
+		m_deviceContext->VSSetShaderResources(slot, 1, ppSRViewNULL);
+	}
+}
 
 //void Renderer::PSSetUAV(Texture* texture, int slot) const
 //{
@@ -579,7 +673,7 @@ void Renderer::SetTextureAsRenderTarget(const Texture* texture) const
 {
 	if (texture)
 		m_deviceContext->OMSetRenderTargets(1, &texture->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
-	else m_deviceContext->OMSetRenderTargets(1, &m_targetView, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+	else m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 }
 
 void Renderer::UpdateConstantBuffer(ConstantBuffer* cbo, const void* gpuData, size_t size)
@@ -950,7 +1044,7 @@ Texture* Renderer::CreateTextureByConfig(TextureConfig config)
 	D3D11_SUBRESOURCE_DATA pIntialData{};
 	D3D11_SUBRESOURCE_DATA data[6];
 	D3D11_SUBRESOURCE_DATA* pInitialDataPtr = nullptr;
-	HRESULT hr;
+	HRESULT hr = S_OK;
 	if (config.m_type == TextureType::DEFAULT) {
 		textureDesc.Width = config.m_width;
 		textureDesc.Height = config.m_height;
@@ -967,7 +1061,7 @@ Texture* Renderer::CreateTextureByConfig(TextureConfig config)
 			pInitialDataPtr = &pIntialData;
 
 		}
-		hr = m_device->CreateTexture2D(&textureDesc, pInitialDataPtr, &newTexture->m_texture);
+		hr = m_device->CreateTexture2D(&textureDesc, pInitialDataPtr, &newTexture->m_texture2);
 	}
 	else if (config.m_type == TextureType::CUBEMAP){
 		textureDesc.MipLevels = 1;
@@ -995,7 +1089,7 @@ Texture* Renderer::CreateTextureByConfig(TextureConfig config)
 			data[i].SysMemPitch = image[i].GetDimensions().x * 4;
 			data[i].SysMemSlicePitch = 0;
 		}
-		hr = m_device->CreateTexture2D(&textureDesc, data, &newTexture->m_texture);
+		hr = m_device->CreateTexture2D(&textureDesc, data, &newTexture->m_texture2);
 	}
 
 	if (!SUCCEEDED(hr)) {
@@ -1056,12 +1150,25 @@ void Renderer::BindTexture(Texture* texture, int slot)
 		else {
 			ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
 			m_deviceContext->PSSetShaderResources(slot, 1, ppSRViewNULL);
+			//m_deviceContext->VSSetShaderResources()
 			return;
 		}
 	}
 	m_deviceContext->PSSetShaderResources(slot, 1, &texture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW)->m_SRV);
 }
 
+
+void Renderer::BindBackBufferAsTexture(bool isBinding /*= true*/, int slot /*= 0*/)
+{
+	if (isBinding) {
+		m_deviceContext->PSSetShaderResources(slot, 1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_SHADER_RESOURCE_VIEW)->m_SRV);
+	}
+	else {
+		ID3D11ShaderResourceView* ppSRViewNULL[1] = { NULL };
+		m_deviceContext->PSSetShaderResources(slot, 1, ppSRViewNULL);
+	}
+	return;
+}
 
 void Renderer::BindTextures(Texture* texture0, Texture* texture1, Texture* texture2)
 {
@@ -1209,33 +1316,36 @@ void Renderer::PSSetShader(Shader* shader)
 
 void Renderer::BindDepthStencil()
 {
-	m_deviceContext->OMSetRenderTargets(1, &m_targetView, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+	m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 }
 
 void Renderer::UnbindDepthStencil(Texture const* renderTarget)
 {
 	if (renderTarget == nullptr)
-		m_deviceContext->OMSetRenderTargets(1, &m_targetView, NULL);
+		m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, NULL);
 	else m_deviceContext->OMSetRenderTargets(1, &renderTarget->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, NULL);
 }
 
 void Renderer::CSSetShader(Shader* shader)
 {
-	if (shader->m_computeShader) {
+	if (shader && shader->m_computeShader) {
 		m_deviceContext->CSSetShader(shader->m_computeShader, nullptr, 0);
 	} 
+	else {
+		m_deviceContext->CSSetShader(nullptr, nullptr, 0);
+	}
 }
 
 void Renderer::SetDepthTexture(Texture const* texture, Texture const* renderTarget)
 {
 	if (texture == nullptr) {
 		if (renderTarget == nullptr)
-			m_deviceContext->OMSetRenderTargets(1, &m_targetView, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+			m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 		else m_deviceContext->OMSetRenderTargets(1, &renderTarget->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, m_depthStencilTexture->GetOrCreateResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 	}
 	else {
 		if (renderTarget == nullptr)
-		m_deviceContext->OMSetRenderTargets(1, &m_targetView, texture->GetResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
+		m_deviceContext->OMSetRenderTargets(1, &m_preBackBuffer->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, texture->GetResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 		else m_deviceContext->OMSetRenderTargets(1, &renderTarget->GetResourceViewByFlag(RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW)->m_RTV, texture->GetResourceViewByFlag(RESOURCE_BINDFLAGS_DEPTH_STENCIL_VIEW)->m_DSV);
 	}
 }
@@ -1627,7 +1737,7 @@ ResourceView* Renderer::GetOrCreateView(ResourceViewConfig config, ID3D11Buffer*
 	return view;
 }
 
-ResourceView* Renderer::GetOrCreateView(ResourceViewConfig config, ID3D11Texture2D* resource)
+ResourceView* Renderer::GetOrCreateView(ResourceViewConfig config, ID3D11Resource* resource)
 {
 	RESOURCE_BINDFLAGS flag = config.m_flag;
 	ResourceView* view = new ResourceView(config, resource);
@@ -1653,6 +1763,16 @@ ResourceView* Renderer::GetOrCreateView(ResourceViewConfig config, ID3D11Texture
 	}
 	case RESOURCE_BINDFLAGS_UNORDERED_ACCESS_VIEW:
 	{
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Format = ResourceView::GetDX11FormatFromEnum(config.m_format);
+
+		HRESULT hr = m_device->CreateUnorderedAccessView(resource, &uavDesc, &view->m_UAV);
+		if (!SUCCEEDED(hr)) {
+			ERROR_AND_DIE("Can't create UAV of texture resource");
+		}
+		std::string debugName = Stringf("Texture - UAV", config.m_numOfElements);
+		SetObjDebugName(view->m_UAV, debugName.c_str());
 		break;
 	}
 	case RESOURCE_BINDFLAGS_RENDER_TARGET_VIEW:

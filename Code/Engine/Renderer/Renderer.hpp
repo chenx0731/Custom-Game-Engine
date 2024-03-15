@@ -49,6 +49,7 @@ struct	ID3D11DeviceContext;
 struct  ID3D11InputLayout;
 struct	IDXGISwapChain;			
 struct	ID3D11RenderTargetView;
+struct  ID3D11ShaderResourceView;
 struct	ID3D11RasterizerState;	
 struct  ID3D11BlendState;
 struct  ID3D11SamplerState;
@@ -118,8 +119,8 @@ public:
 	void DispatchCS(int threadX, int threadY, int threadZ);
 	void DrawVertexArray(int numVertexes, const Vertex_PCU* vertexes, Topology topology = Topology::TriangleList);
 	void DrawVertexArray(int numVertexes, const Vertex_PCUTBN* vertexes);
-	void DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCU* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer);
-	void DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCUTBN* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer);
+	void DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCU* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer = nullptr, IndexBuffer* indexBuffer = nullptr);
+	void DrawVertexIndexArray(int numVertexes, int numIndexes, const Vertex_PCUTBN* vertexes, const unsigned int* indexes, VertexBuffer* vertexBuffer = nullptr, IndexBuffer* indexBuffer = nullptr);
 	void DrawVertexBuffer(VertexBuffer* vbo, int vertexCount, Topology topology = Topology::TriangleList, int vertexOffset = 0);
 	void DrawVertexIndexBuffer(VertexBuffer* vbo, IndexBuffer* ibo, size_t indexCount);
 	void Draw(int vertexCount, int vertexOffset = 0);
@@ -133,6 +134,7 @@ public:
 	StructuredBuffer*	CreateStructuredBufferByData(size_t numOfElements, size_t stride, void* data);
 	StructuredBuffer*	CreateStructuredBufferByConfig(BufferConfig config);
 	void		BindTexture(Texture* texture, int slot = 0);
+	void		BindBackBufferAsTexture(bool isBinding = true, int slot = 0);
 
 	void		BindTextures(Texture* texture0, Texture* texture1, Texture* texture2);
 	void		BindShader(Shader* shader);
@@ -168,10 +170,15 @@ public:
 	void		SetSamplerMode(SamplerMode samplerMode);
 	void		SetRasterizerMode(RasterizerMode rasterizerMode);
 	void		SetDepthMode(DepthMode depthMode);
+
 	void		CSSetUAV(StructuredBuffer* buffer, int slot) const;
+	void		CSSetUAV(Texture* texture, int slot) const;
+
 	void		CSSetSRV(StructuredBuffer* buffer, int slot) const;
+	void		CSSetSRV(Texture* texture, int slot) const;
 	void		VSSetSRV(StructuredBuffer* buffer, int slot) const;
-	void		PSSetUAV(Texture* texture, int slot) const;
+	void		VSSetSRV(Texture* buffer, int slot) const;
+
 
 	void		SetRenderTarget() const;
 	void		SetTextureAsRenderTarget(const Texture* texture) const;
@@ -212,7 +219,7 @@ public:
 	ID3D11RenderTargetView* GetD3D11TargetView() const { return m_targetView; }
 
 	ResourceView*			GetOrCreateView(ResourceViewConfig config, ID3D11Buffer* resource);
-	ResourceView*			GetOrCreateView(ResourceViewConfig config, ID3D11Texture2D* resource);
+	ResourceView*			GetOrCreateView(ResourceViewConfig config, ID3D11Resource* resource);
 
 	RendererConfig const& GetConfig() const;
 	Texture* m_depthStencilTexture = nullptr;
@@ -230,11 +237,14 @@ protected:
 	std::vector<Shader*>		m_loadedShaders;
 	Shader*						m_currentShader = nullptr;
 	Shader*						m_defaultShader = nullptr;
+	Shader*						m_copyShader = nullptr;
 	Texture*					m_defaultTexture = nullptr;
 	
 
 	VertexBuffer*				m_immediateVBO_PCU	= nullptr;
 	VertexBuffer*				m_immediateVBO_PNCU	= nullptr;
+
+	IndexBuffer*				m_immediateIBO = nullptr;
 
 	ConstantBuffer*				m_lightCBO		= nullptr;
 	ConstantBuffer*				m_cameraCBO		= nullptr;
@@ -244,6 +254,7 @@ protected:
 	ID3D11DeviceContext*		m_deviceContext			= nullptr;
 	IDXGISwapChain*				m_swapChain				= nullptr;
 	ID3D11RenderTargetView*		m_targetView			= nullptr;
+	Texture*					m_preBackBuffer			= nullptr;
 	//ID3D11DepthStencilView*		m_depthStencilView		= nullptr;
 	//ID3D11Texture2D*			m_depthStencilTexture	= nullptr;
 

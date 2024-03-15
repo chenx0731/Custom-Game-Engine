@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include "Engine/Core/XmlUtils.hpp"
+#include "Engine/Core/HashedCaseInsensitiveString.hpp"
 struct Rgba8;
 struct Vec2;
 struct Vec3;
@@ -23,5 +24,5 @@ public:
 	IntVec2			GetValue(std::string const& keyName, IntVec2 const& defaultValue) const;
 
 private:
-	std::map<std::string, std::string> m_keyValuePairs;
+	std::map<HCIString, std::string> m_keyValuePairs;
 };

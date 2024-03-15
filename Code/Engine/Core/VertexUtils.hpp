@@ -13,6 +13,7 @@ struct FloatRange;
 struct OBB2;
 struct Capsule2;
 struct LineSegment2;
+struct ConvexPoly2D;
 struct Mat44;
 //struct Vertex_PNCU;
 
@@ -34,6 +35,8 @@ void AddVertsForCapsule2D(std::vector<Vertex_PCU>& verts, Capsule2 const& capsul
 void AddVertsForCapsule2D(std::vector<Vertex_PCU>& verts, Vec2 const& boneStart, Vec2 const& boneEnd, float radius, Rgba8 const& color);
 void AddVertsForLineSegment2D(std::vector<Vertex_PCU>& verts, LineSegment2 const& lineSegment, float thickness, Rgba8 const& color);
 void AddVertsForLineSegment2D(std::vector<Vertex_PCU>& verts, Vec2 const& start, Vec2 const& end, float thickness, Rgba8 const& color);
+void AddVertsForInfiniteLineSegment2D(std::vector<Vertex_PCU>& verts, Vec2 const& start, Vec2 const& end, float thickness, Rgba8 const& color);
+void AddVertsForLineSegment2D(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, Vec2 const& start, Vec2 const& end, float thickness, Rgba8 const& color);
 void AddVertsForLineSegment3D(std::vector<Vertex_PCU>& verts, Vec3 const& start, Vec3 const& end, float thickness, Rgba8 const& color);
 void AddVertsForArrow2D(std::vector<Vertex_PCU>& verts, Vec2 tailPos, Vec2 tipPos, float arrowSize, float lineThickness, Rgba8 const& color);
 void AddVertsForArrow3D(std::vector<Vertex_PCU>& verts, Vec3 start, Vec3 end, float const& radius, Rgba8 const& color);
@@ -135,3 +138,11 @@ void AddVertsForUVSphereZ3D(std::vector<Vertex_PCUTBN>& verts, std::vector<unsig
 	Vec3 const& center, float radius, float numSlices, float numStacks, Rgba8 const& color = Rgba8::WHITE, AABB2 const& UVs = AABB2::ZERO_TO_ONE);
 
 void AddVertsForTBNDebug(std::vector<Vertex_PCU>& vertexes, const std::vector<Vertex_PCUTBN>& vertsTBN);
+
+void AddVertsForConvexPoly2D(std::vector<Vertex_PCU>& verts, const ConvexPoly2D& convexPoly, Rgba8 color = Rgba8::WHITE);
+
+void AddVertsForConvexPoly2DFrame(std::vector<Vertex_PCU>& verts, const ConvexPoly2D& convexPoly, float thickness, Rgba8 color = Rgba8::WHITE);
+
+void AddVertsForConvexPoly2D(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, const ConvexPoly2D& convexPoly, Rgba8 color = Rgba8::WHITE);
+
+void AddVertsForConvexPoly2DFrame(std::vector<Vertex_PCU>& verts, std::vector<unsigned int>& indexes, const ConvexPoly2D& convexPoly, float thickness, Rgba8 color = Rgba8::WHITE);

@@ -31,6 +31,10 @@ DXGI_FORMAT ResourceView::GetDX11FormatFromEnum(ResourceFormat format)
 		return DXGI_FORMAT_R32G32B32A32_TYPELESS;
 	case ResourceFormat::R32G32B32A32_FLOAT:
 		return DXGI_FORMAT_R32G32B32A32_FLOAT;
+	case ResourceFormat::R32_FLOAT:
+		return DXGI_FORMAT_R32_FLOAT;
+	case ResourceFormat::R32G32_FlOAT:
+		return DXGI_FORMAT_R32G32_FLOAT;
 	case ResourceFormat::UNKNOWN:
 		return DXGI_FORMAT_UNKNOWN;
 	default:

@@ -202,6 +202,20 @@ float Vec2::NormalizeAndGetPreviousLength()
 }
 
 
+void Vec2::RotateAboutPoint(Vec2 point, float degree)
+{
+	Vec2 pointToVert = *this - point;
+	pointToVert.RotateDegrees(degree);
+	*this = point + pointToVert;
+}
+
+void Vec2::ScaleAboutPoint(Vec2 point, float scale)
+{
+	Vec2 pointToVert = *this - point;
+	pointToVert *= scale;
+	*this = point + pointToVert;
+}
+
 //-----------------------------------------------------------------------------------------------
 const Vec2 Vec2::operator + ( const Vec2& vecToAdd ) const
 {

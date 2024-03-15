@@ -30,6 +30,7 @@ void EventSystem::EndFrame()
 
 void EventSystem::SubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction functionPtr)
 {
+	/*
 	m_subListLock.lock();
 	for (int funcIndex = 0; funcIndex < m_subscriptionListsByEventName[eventName].size(); funcIndex++) {
 		if (m_subscriptionListsByEventName[eventName][funcIndex] == nullptr) {
@@ -39,22 +40,63 @@ void EventSystem::SubscribeEventCallbackFunction(std::string const& eventName, E
 		}
 	}
 	m_subscriptionListsByEventName[eventName].push_back(functionPtr);
-	m_subListLock.unlock();
+	m_subListLock.unlock();*/
+
+	SubscriptionList& subscribers = m_subscriptionListsByEventName[eventName];
+	EventSubscription_Function* newSubscriber = new EventSubscription_Function(functionPtr);
+	subscribers.push_back(newSubscriber);
 }
 
 void EventSystem::UnsubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction functionPtr)
 {
 	m_subListLock.lock();
+	// #SD4EventSysToDo
+	/*
 	for (int funcIndex = 0; funcIndex < m_subscriptionListsByEventName[eventName].size(); funcIndex++) {
 		if (functionPtr == m_subscriptionListsByEventName[eventName][funcIndex]) {
 			m_subscriptionListsByEventName[eventName][funcIndex] = nullptr;
 		}
+	}*/
+	auto found = m_subscriptionListsByEventName.find(eventName);
+	if (found == m_subscriptionListsByEventName.end())
+	{
+		return;
 	}
+	SubscriptionList& subscriprtionList = found->second;
+
+	for (int subscriberIndex = 0; subscriberIndex < (int)subscriprtionList.size(); subscriberIndex++)
+	{
+		EventSubscription_Function* subscriber = dynamic_cast<EventSubscription_Function*>(subscriprtionList[subscriberIndex]);
+		// or use isthisyou() method function
+		if (subscriber && subscriber->m_funcPtr == functionPtr)
+		{
+			delete subscriber;
+			subscriprtionList[subscriberIndex] = nullptr;
+		}
+	}
+
 	m_subListLock.unlock();
 }
 
 void EventSystem::FireEvent(std::string const& eventName, EventArgs& args)
 {
+	auto found = m_subscriptionListsByEventName.find(eventName);
+	if (found == m_subscriptionListsByEventName.end())
+	{
+		return; // No subscribers
+	}
+	SubscriptionList& subscriprtionList = found->second;
+
+	for (int subscriberIndex = 0; subscriberIndex < (int)subscriprtionList.size(); subscriberIndex++)
+	{
+		EventSubscriptionBase* subscriber = subscriprtionList[subscriberIndex];
+		bool didConsumeEvent = subscriber->Execute(args);
+		if (didConsumeEvent)
+		{
+			break;
+		}
+	}
+	/*
 	for (int funcIndex = 0; funcIndex < m_subscriptionListsByEventName[eventName].size(); funcIndex++) {
 		if (m_subscriptionListsByEventName[eventName][funcIndex]) {
 			EventCallbackFunction callbackFunciton = m_subscriptionListsByEventName[eventName][funcIndex];
@@ -63,21 +105,28 @@ void EventSystem::FireEvent(std::string const& eventName, EventArgs& args)
 			if (isConsumed)
 				break;
 		}
-	}
+	}*/
 }
 
 void EventSystem::FireEvent(std::string const& eventName)
 {
 	m_subListLock.lock();
-	for (int funcIndex = 0; funcIndex < m_subscriptionListsByEventName[eventName].size(); funcIndex++) {
-		if (m_subscriptionListsByEventName[eventName][funcIndex]) {
-			EventArgs args;
-			EventCallbackFunction callbackFunciton = m_subscriptionListsByEventName[eventName][funcIndex];
-			bool isConsumed = false;
-			isConsumed = callbackFunciton(args);
-			if (isConsumed)
-				break;
-		}	
+	auto found = m_subscriptionListsByEventName.find(eventName);
+	if (found == m_subscriptionListsByEventName.end())
+	{
+		return; // No subscribers
+	}
+	SubscriptionList& subscriprtionList = found->second;
+
+	for (int subscriberIndex = 0; subscriberIndex < (int)subscriprtionList.size(); subscriberIndex++)
+	{
+		EventArgs args;
+		EventSubscriptionBase* subscriber = subscriprtionList[subscriberIndex];
+		bool didConsumeEvent = subscriber->Execute(args);
+		if (didConsumeEvent)
+		{
+			break;
+		}
 	}
 	m_subListLock.unlock();
 }
@@ -97,7 +146,7 @@ Strings EventSystem::GetAllEvents()
 {
 	Strings events;
 	for (auto const& imap : m_subscriptionListsByEventName) {
-		events.push_back(imap.first);
+		events.push_back(imap.first.GetOriginalText());
 	}
 	return events;
 }

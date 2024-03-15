@@ -160,6 +160,9 @@ Vec3 GetAbsoluteVec3(const Vec3& input);
 float MaxNumAmong3(float num1, float num2, float num3);
 float MinNumAmong3(float num1, float num2, float num3);
 
+float Max(float num1, float num2);
+float Min(float num1, float num2);
+
 Rgba8 LerpColor(Rgba8 a, Rgba8 b, float alpha);
 
 double Pow(double base, int exponent);

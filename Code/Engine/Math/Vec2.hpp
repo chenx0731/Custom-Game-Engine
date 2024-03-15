@@ -48,6 +48,8 @@ public:
 	void Normalize();
 	void Reflect(const Vec2& platformVec);
 	float NormalizeAndGetPreviousLength();
+	void RotateAboutPoint(Vec2 point, float degree);
+	void ScaleAboutPoint(Vec2 point, float scale);
 
 	// Operators (const)
 	bool		operator==( const Vec2& compare ) const;		// vec2 == vec2
